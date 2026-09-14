@@ -1,15 +1,13 @@
-# Projekt-Übersicht
+# Voron Switchwire - Multimaterial & Beheizte Filament-Trockenbox (RRF 3.x)
 
-Willkommen im Hauptverzeichnis des Projekts.
+Projekt zur Automatisierung und Steuerung einer Multimaterial-Einheit (MMU) und einer aktiven Filament-Trockenbox auf Basis von RepRapFirmware (RRF) und ESP32-Controllern.
 
-## Verzeichnisstruktur
+## 📂 Projektstruktur
 
-- **`frontend/`**: Quellcode der Benutzeroberfläche.
-- **`backend/`**: Serverlogik, APIs und Datenbankanbindungen.
-- **`docs/`**: Technische Dokumentation und Spezifikationen.
-- **`scripts/`**: Automatisierungs- und Deployment-Skripte.
+- **`01_RRF_Scripts/`**: RepRapFirmware System-Dateien (`sys/`) sowie Makros für MMU-Steuerung und Trockenbox-Steuerung (`macros/`).
+- **`02_ESP32_Modules/`**: C++ / PlatformIO Quellcode für die externen ESP32-Controller (Sensorauslesung, Relaissteuerung, Hilfsmotoren).
+- **`03_CAD_and_3D_Models/`**: STEP- und STL-Dateien für den 3D-Druck der Multimaterial-Mechanik und der Filament-Box.
+- **`04_Documentation_and_Wiring/`**: Schaltpläne, Pinout-Tabellen und Dokumentation der Verkabelung.
 
-## Schnellstart
-
-1. Überprüfe die README-Dateien in den jeweiligen Unterordnern für spezifische Anweisungen.
-2. Führe die benötigten Build- und Startskripte aus.
+---
+*Erstellt & gepflegt mit Unterstützung des Gemini AI Coding Agents.*
