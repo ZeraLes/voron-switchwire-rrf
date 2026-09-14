@@ -1,0 +1,110 @@
+name: Gemini AI Coding Agent & Reviewer
+
+on:
+  # Löst aus, wenn ein PR geöffnet oder aktualisiert wird
+  pull_request:
+    types: [opened, synchronize]
+  # Löst aus, wenn jemand in einem Issue oder PR einen Kommentar schreibt
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  run-agent:
+    # Führe den Agenten aus bei PR-Events ODER wenn ein Kommentar mit '@gemini' startet
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '@gemini'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install google-genai
+
+      - name: Gemini Agent ausführen
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          python - << 'EOF'
+          import os
+          import subprocess
+          from google import genai
+          from google.genai import types
+
+          api_key = os.environ.get("GEMINI_API_KEY")
+          event_name = os.environ.get("EVENT_NAME")
+          comment_body = os.environ.get("COMMENT_BODY", "")
+          pr_number = os.environ.get("PR_NUMBER")
+
+          client = genai.Client(api_key=api_key)
+
+          # 1. FALL: REAKTION AUF PROMPT IM KOMMENTAR (@gemini ...)
+          if event_name == "issue_comment" and "@gemini" in comment_body:
+              prompt_task = comment_body.replace("@gemini", "").strip()
+              print(f"Empfangene Aufgabe: {prompt_task}")
+
+              system_instruction = """
+              Du bist ein autonomer Software-Entwickler.
+              Deine Aufgabe ist es, den Code im Repository basierend auf der Nutzeranforderung zu prüfen, 
+              Dateien zu bearbeiten, Fehler zu korrigieren und Qualitätschecks durchzuführen.
+              """
+
+              response = client.models.generate_content(
+                  model="gemini-1.5-flash",
+                  contents=f"Aufgabe im Repo ausführen: {prompt_task}",
+                  config=types.GenerateContentConfig(
+                      system_instruction=system_instruction,
+                      temperature=0.2
+                  )
+              )
+
+              # Speichere die Antwort als PR-Kommentar
+              with open("agent_response.md", "w", encoding="utf-8") as f:
+                  f.write(f"### 🤖 Gemini Agent Antwort\n\n{response.text}")
+
+              subprocess.run(["gh", "pr", "comment", str(pr_number), "--body-file", "agent_response.md"])
+
+          # 2. FALL: AUTOMATISCHES CODE-REVIEW BEI PULL REQUESTS
+          elif event_name == "pull_request":
+              print("Führe automatisches Code-Review für PR durch...")
+              target_branch = os.environ.get("GITHUB_BASE_REF", "main")
+              subprocess.run(["git", "fetch", "origin", target_branch])
+              diff = subprocess.check_output(["git", "diff", f"origin/{target_branch}...HEAD"], text=True)
+
+              if diff.strip():
+                  prompt = f"""
+                  Scanne folgenden Git-Diff auf Bugs, Fehler, Sicherheitsrisiken und Verbesserungspotenziale:
+                  ```diff
+                  {diff[:30000]}
+                  ```
+                  Gib konkrete Korrekturvorschläge an.
+                  """
+                  response = client.models.generate_content(
+                      model="gemini-1.5-flash",
+                      contents=prompt
+                  )
+                  with open("review.md", "w", encoding="utf-8") as f:
+                      f.write(f"## 🔍 Gemini Automatic Bug Scan & Review\n\n{response.text}")
+
+                  subprocess.run(["gh", "pr", "comment", str(pr_number), "--body-file", "review.md"])
+          EOF
