@@ -65,12 +65,17 @@ jobs:
               print(f"Verarbeite Aufgabe: {user_task}")
 
               system_prompt = f"""
-              Du bist ein Software-Entwickler.
-              Deine Aufgabe: Erstelle die angeforderten Ordner und Dateien basierend auf diesem Wunsch:
+              Du bist ein Software-Entwickler für ein 3D-Drucker- und Embedded-Projekt (RRF 3.x, ESP32, CAD).
+              Führe die im Benutzerauftrag genannten Ordnerpfade und README-Inhalte EXAKT wie vorgegeben aus.
+              Erstelle keine generischen Web-Entwicklungsordner (wie backend, frontend, docs).
+
+              Benutzerauftrag:
               {user_task}
 
-              Gib als Antwort AUSSCHLIESSLICH ein ausführbares Bash-Skript zurück (ohne Markdown ```bash Wrappers), 
-              welches die Ordner per `mkdir -p` erstellt und die README.md Dateien per `cat << 'EOF' > pfad/README.md` befüllt.
+              Gib als Antwort AUSSCHLIESSLICH ein ausführbares Bash-Skript zurück (ohne Markdown ```bash Wrappers).
+              - Erstelle Ordner mit `mkdir -p <pfad>`
+              - Erstelle README.md Dateien mit `cat << 'EOF' > <pfad>/README.md`
+              - Lösche alte/falsche Ordner (wie backend, frontend, docs, scripts) falls nötig per `rm -rf`.
               """
 
               response = client.models.generate_content(
@@ -78,24 +83,26 @@ jobs:
                   contents=system_prompt
               )
 
-              # Schreibe und führe das Bash-Skript aus
               bash_script = response.text.replace("```bash", "").replace("```", "").strip()
               with open("generate_structure.sh", "w", encoding="utf-8") as f:
                   f.write(bash_script)
 
               subprocess.run(["bash", "generate_structure.sh"], check=True)
 
+              # Temporäre Skriptdatei aufräumen
+              if os.path.exists("generate_structure.sh"):
+                  os.remove("generate_structure.sh")
+
               # Git Config & Commit
               subprocess.run(["git", "config", "user.name", "github-actions[bot]"])
               subprocess.run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"])
               subprocess.run(["git", "add", "."])
               
-              # Prüfe ob Änderungen vorliegen und committe
               status = subprocess.check_output(["git", "status", "--porcelain"], text=True)
               if status.strip():
-                  subprocess.run(["git", "commit", "-m", "feat: Gemini AI erstellte Ordnerstruktur & READMEs"])
+                  subprocess.run(["git", "commit", "-m", "refactor: Ordnerstruktur auf RRF/ESP32 Projektvorgaben korrigiert"])
                   subprocess.run(["git", "push"])
-                  message = "✅ Ordnerstruktur und README-Dateien wurden erfolgreich im Repository angelegt!"
+                  message = "✅ Ordnerstruktur wurde erfolgreich korrigiert und bereinigt!"
               else:
                   message = "Keine Änderungen vorgenommen."
 
